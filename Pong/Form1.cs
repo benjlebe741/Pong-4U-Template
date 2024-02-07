@@ -26,6 +26,8 @@ namespace Pong
         #region global values
 
         //graphics objects for drawing
+        Pen lazerPen = new Pen(Color.Salmon, 2);
+        Pen lazerPenUnderlay = new Pen(Color.Red, 3);
         SolidBrush whiteBrush = new SolidBrush(Color.White);
         Font drawFont = new Font("Courier New", 10);
 
@@ -33,61 +35,82 @@ namespace Pong
         SoundPlayer scoreSound = new SoundPlayer(Properties.Resources.score);
         SoundPlayer collisionSound = new SoundPlayer(Properties.Resources.collision);
 
-        //determines whether a key is being pressed or not
-        Boolean wKeyDown, sKeyDown, upKeyDown, downKeyDown;
-
         // check to see if a new game can be started
         Boolean newGameOk = true;
 
+        //Player values *Individual*
+        int ballTouching;
+        Rectangle[] rect12 = new Rectangle[2];
+        Rectangle[] check12 = new Rectangle[2];
+        Rectangle[] laserEnd12 = new Rectangle[2];
+        int[] score12 = new int[2] { 0, 0 };
+        int[] ballChange12 = new int[2] { 1, -1 };
+        Label[] label12 = new Label[2];
+        int[] up12 = new int[2] { 0, 0 };
+        int[] down12 = new int[2] { 0, 0 };
+        Keys[] upKey12 = new Keys[2] { Keys.W, Keys.Up };
+        Keys[] downKey12 = new Keys[2] { Keys.S, Keys.Down };
+
         //ball values
-        Boolean ballMoveRight = true;
-        Boolean ballMoveDown = true;
-        const int BALL_SPEED = 4;
+        int ballMode = 0;
+        Color[] ballModeColor = new Color[2] { Color.White, Color.Red };
+        int ballMoveRight = 1;
+        int ballMoveDown = 1;
+        float ballSpeedHorizontal;
+        float ballSpeedVertical;
+        const int ballSnipeSpeed = 10;
         const int BALL_WIDTH = 20;
-        const int BALL_HEIGHT = 20; 
+        const int BALL_HEIGHT = 20;
+        const int BALL_OFFSET = 20;
         Rectangle ball;
+
+        Point ballMiddle;
+        Point[] playerMiddle12 = new Point[2];
 
         //player values
         const int PADDLE_SPEED = 4;
         const int PADDLE_EDGE = 20;  // buffer distance between screen edge and paddle            
         const int PADDLE_WIDTH = 10;
         const int PADDLE_HEIGHT = 40;
-        Rectangle player1, player2;
 
-        //player and game scores
-        int player1Score = 0;
-        int player2Score = 0;
-        int gameWinScore = 2;  // number of points needed to win game
+        //laser values
+        const int LASER_SPEED = 18;
+        const int LASER_OFFSET = 200;
+        int laserMoveDown = 1;
+        const int LINE_DEVISION = 35;
+
+        //game score
+        int gameWinScore = 3;  // number of points needed to win game
 
         #endregion
 
         public Form1()
         {
             InitializeComponent();
+            label12 = new Label[2] { player1ScoreLabel, player2ScoreLabel };
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             //check to see if a key is pressed and set is KeyDown value to true if it has
+
+            for (int i = 0; i <= 1; i++)
+            {
+                if (e.KeyCode == upKey12[i]) { up12[i] = -1; }
+                if (e.KeyCode == downKey12[i]) { down12[i] = 1; }
+            }
+
             switch (e.KeyCode)
             {
-                case Keys.W:
-                    wKeyDown = true;
-                    break;
-                case Keys.S:
-                    sKeyDown = true;
-                    break;
-                case Keys.Up:
-                    upKeyDown = true;
-                    break;
-                case Keys.Down:
-                    downKeyDown = true;
-                    break;
-                case Keys.Y:
                 case Keys.Space:
                     if (newGameOk)
                     {
                         SetParameters();
+                    }
+                    else if (ballMode != 0)
+                    {
+                        ballMode = 0;
+                        shootBall(ballTouching - 1);
                     }
                     break;
                 case Keys.Escape:
@@ -98,127 +121,182 @@ namespace Pong
                     break;
             }
         }
-        
+
+        private void shootBall(int shooter) 
+        {
+            //No Longer Touching
+            ballTouching = 0;
+            
+            //Remove Regular Pong Ball Speeds
+            ballSpeedHorizontal = 0;
+            ballSpeedVertical = 0;
+            ballMoveDown = -1;
+            ballMoveRight = -1;
+
+            //Find the slope of the line
+            Point lineStart = ballMiddle;
+            Point lineEnd = laserEnd12[shooter].Location;
+
+            //Get the Pong Ball to follow the line
+            ballSpeedHorizontal = (lineStart.X - lineEnd.X) / LINE_DEVISION;
+            ballSpeedVertical = (lineStart.Y - lineEnd.Y) / LINE_DEVISION;
+        }
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
             //check to see if a key has been released and set its KeyDown value to false if it has
-            switch (e.KeyCode)
+            for (int i = 0; i <= 1; i++)
             {
-                case Keys.W:
-                    wKeyDown = false;
-                    break;
-                case Keys.S:
-                    sKeyDown = false;
-                    break;
-                case Keys.Up:
-                    upKeyDown = false;
-                    break;
-                case Keys.Down:
-                    downKeyDown = false;
-                    break;
+                if (e.KeyCode == upKey12[i]) { up12[i] = 0; }
+                if (e.KeyCode == downKey12[i]) { down12[i] = 0; }
             }
         }
-
-        /// <summary>
-        /// sets the ball and paddle positions for game start
-        /// </summary>
         private void SetParameters()
         {
             if (newGameOk)
             {
-                player1Score = player2Score = 0;
+                score12[0] = score12[1] = 0;
+                label12[0].Text = label12[1].Text = "";
                 newGameOk = false;
                 startLabel.Visible = false;
                 gameUpdateLoop.Start();
             }
-
-            //player start positions
-            player1 = new Rectangle(PADDLE_EDGE, this.Height / 2 - PADDLE_HEIGHT / 2, PADDLE_WIDTH, PADDLE_HEIGHT);
-            player2 = new Rectangle(this.Width - PADDLE_EDGE - PADDLE_WIDTH, this.Height / 2 - PADDLE_HEIGHT / 2, PADDLE_WIDTH, PADDLE_HEIGHT);
-
-            // TODO create a ball rectangle in the middle of screen
-
+            SetStartingLocations();
         }
+        private void SetStartingLocations()
+        {
+            //player start positions
+            rect12[0] = new Rectangle(PADDLE_EDGE, this.Height / 2 - PADDLE_HEIGHT / 2, PADDLE_WIDTH, PADDLE_HEIGHT);
+            check12[0] = rect12[0];
+            rect12[1] = new Rectangle(this.Width - PADDLE_EDGE - PADDLE_WIDTH, this.Height / 2 - PADDLE_HEIGHT / 2, PADDLE_WIDTH, PADDLE_HEIGHT);
+            check12[1] = rect12[1];
+            ball = new Rectangle((this.Width / 2) - (BALL_WIDTH / 2), (this.Height / 2) - (BALL_HEIGHT / 2), BALL_WIDTH, BALL_HEIGHT);
 
-        /// <summary>
-        /// This method is the game engine loop that updates the position of all elements
-        /// and checks for collisions.
-        /// </summary>
+            laserEnd12[1] = new Rectangle(0, 0, 0, 0);
+            laserEnd12[0] = new Rectangle(this.Width, 0, 0, 0);
+
+            ballSpeedHorizontal = 4;
+            ballSpeedVertical = 4;
+        }
         private void gameUpdateLoop_Tick(object sender, EventArgs e)
         {
+            #region update middles of objects
+            ballMiddle = new Point(ball.X + (BALL_WIDTH / 2), ball.Y + (BALL_HEIGHT / 2));
+            for (int i = 0; i <= 1; i++)
+            {
+                playerMiddle12[i] = new Point(rect12[i].X + (PADDLE_WIDTH / 2), rect12[i].Y + (PADDLE_HEIGHT / 2));
+            }
+            #endregion
+
             #region update ball position
 
-            // TODO create code to move ball either left or right based on ballMoveRight and using BALL_SPEED
+            if (ballTouching == 0)
+            {
+                ball.X += Convert.ToInt32(ballMoveRight * ballSpeedHorizontal);
+                ball.Y += Convert.ToInt32(ballMoveDown * ballSpeedVertical);
+            }
+            else
+            {
+                ballSpeedHorizontal = 4;
+                ball.X = (playerMiddle12[ballTouching - 1].X) + ball.X - ballMiddle.X + (BALL_OFFSET * ballChange12[ballTouching - 1]);
+                ball.Y = (playerMiddle12[ballTouching - 1].Y) + ball.Y - ballMiddle.Y;
+            }
 
-            // TODO create code move ball either down or up based on ballMoveDown and using BALL_SPEED
-
+            for (int i = 0; i <= 1; i++)
+            {
+                laserEnd12[i].Y += (laserMoveDown * LASER_SPEED);
+            }
             #endregion
 
             #region update paddle positions
-
-            if (wKeyDown == true && player1.Y > 0)
+            for (int i = 0; i <= 1; i++)
             {
-                // TODO create code to move player 1 up
+                check12[i].Location = rect12[i].Location;
+
+                check12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
+                if (check12[i].Y > 0 && check12[i].Y < (this.Height - PADDLE_HEIGHT))
+                {
+                    rect12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
+                }
             }
-
-            // TODO create an if statement and code to move player 1 down 
-
-            // TODO create an if statement and code to move player 2 up
-
-            // TODO create an if statement and code to move player 2 down
-
             #endregion
 
-            #region ball collision with top and bottom lines
+            #region collision with top and bottom lines
 
-            if (ball.Y < 0) // if ball hits top line
+
+
+            if ((ball.Y <= 0) || (ball.Y >= this.Height - BALL_HEIGHT)) // if ball hits top or bottom line
             {
-                // TODO use ballMoveDown boolean to change direction
-                // TODO play a collision sound
+                ballMoveDown *= -1;
+                collisionSound.Play();
             }
-            // TODO In an else if statement check for collision with bottom line
-            // If true use ballMoveDown boolean to change direction
-
+            if (laserEnd12[0].Y <= 0 - LASER_OFFSET)
+            {
+                laserMoveDown = 1;
+            }
+            else if (laserEnd12[0].Y >= this.Height + LASER_OFFSET)
+            {
+                laserMoveDown = -1;
+            }
             #endregion
 
             #region ball collision with paddles
-
-            // TODO create if statment that checks if player1 collides with ball and if it does
-                 // --- play a "paddle hit" sound and
-                 // --- use ballMoveRight boolean to change direction
-
-            // TODO create if statment that checks if player2 collides with ball and if it does
-                // --- play a "paddle hit" sound and
-                // --- use ballMoveRight boolean to change direction
-            
-            /*  ENRICHMENT
-             *  Instead of using two if statments as noted above see if you can create one
-             *  if statement with multiple conditions to play a sound and change direction
-             */
-
+            for (int i = 0; i <= 1; i++)
+            {
+                if (ball.IntersectsWith(rect12[i]))
+                {
+                    collisionSound.Play();
+                    ballMoveRight = ballChange12[i];
+                    ballTouching = i + 1;
+                    ballMode = 1;
+                }
+            }
             #endregion
 
             #region ball collision with side walls (point scored)
-
             if (ball.X < 0)  // ball hits left wall logic
             {
-                // TODO
-                // --- play score sound
-                // --- update player 2 score and display it to the label
+                scoreSound.Play();
+                score12[1] += 1;
+                label12[1].Text = score12[1].ToString();
 
-                // TODO use if statement to check to see if player 2 has won the game. If true run 
-                // GameOver() method. Else change direction of ball and call SetParameters() method.
+                if (score12[1] >= gameWinScore)
+                {
+                    GameOver("Player 2");
+                }
+                else
+                {
+                    SetParameters();
+                    ballMoveRight *= -1;
+                    ballMoveDown *= -1;
+                }
 
             }
 
-            // TODO same as above but this time check for collision with the right wall
+            if (ball.X > this.Width - BALL_WIDTH)  // ball hits right wall logic
+            {
+                scoreSound.Play();
+                score12[0] += 1;
+                label12[0].Text = score12[0].ToString();
+
+                if (score12[0] >= gameWinScore)
+                {
+                    GameOver("Player 1");
+                }
+                else
+                {
+                    SetParameters();
+                    ballMoveRight *= -1;
+                    ballMoveDown *= -1;
+                }
+
+            }
 
             #endregion
-            
+
             //refresh the screen, which causes the Form1_Paint method to run
             this.Refresh();
         }
-        
+
         /// <summary>
         /// Displays a message for the winner when the game is over and allows the user to either select
         /// to play again or end the program
@@ -227,21 +305,26 @@ namespace Pong
         private void GameOver(string winner)
         {
             newGameOk = true;
-
-            // TODO create game over logic
-            // --- stop the gameUpdateLoop
-            // --- show a message on the startLabel to indicate a winner, (may need to Refresh).
-            // --- use the startLabel to ask the user if they want to play again
-
+            SetStartingLocations();
+            startLabel.Text = "The Winner Is " + (winner) + "\nPlay Again? (space)";
+            startLabel.Visible = true;
+            Refresh();
+            gameUpdateLoop.Enabled = false;
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            // TODO draw player2 using FillRectangle
-            e.Graphics.FillRectangle(whiteBrush, player1);
+            for (int i = 0; i <= 1; i++)
+            {
+                e.Graphics.FillRectangle(whiteBrush, rect12[i]);
 
-            // TODO draw ball using FillRectangle
-
+                if (ballTouching - 1 == i)
+                {
+                    e.Graphics.DrawLine(lazerPenUnderlay, ballMiddle, laserEnd12[i].Location);
+                    e.Graphics.DrawLine(lazerPen, ballMiddle, laserEnd12[i].Location);
+                }
+            }
+            e.Graphics.FillRectangle(new SolidBrush(ballModeColor[ballMode]), ball);
         }
 
     }
