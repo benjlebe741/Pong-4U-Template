@@ -56,9 +56,8 @@ namespace Pong
         Color[] ballModeColor = new Color[2] { Color.White, Color.Red };
         int ballMoveRight = 1;
         int ballMoveDown = 1;
-        float ballSpeedHorizontal;
-        float ballSpeedVertical;
-        const int ballSnipeSpeed = 10;
+        double ballSpeedHorizontal;
+        double ballSpeedVertical;
         const int BALL_WIDTH = 20;
         const int BALL_HEIGHT = 20;
         const int BALL_OFFSET = 20;
@@ -77,7 +76,7 @@ namespace Pong
         const int LASER_SPEED = 18;
         const int LASER_OFFSET = 200;
         int laserMoveDown = 1;
-        const int LINE_DEVISION = 35;
+        const int LINE_MULTIPLIER = 20;
 
         //game score
         int gameWinScore = 3;  // number of points needed to win game
@@ -137,9 +136,18 @@ namespace Pong
             Point lineStart = ballMiddle;
             Point lineEnd = laserEnd12[shooter].Location;
 
+            double run = lineEnd.X - lineStart.X;
+            double rise = lineEnd.Y - lineStart.Y;
+
+            double theta = Math.Atan2(rise, run);
+
+            //if the hypotonouse was '1', what would the rise and run be?
+            double newRise = Math.Sin(theta);
+            double newRun = Math.Cos(theta);
+
             //Get the Pong Ball to follow the line
-            ballSpeedHorizontal = (lineStart.X - lineEnd.X) / LINE_DEVISION;
-            ballSpeedVertical = (lineStart.Y - lineEnd.Y) / LINE_DEVISION;
+            ballSpeedHorizontal = (0 - newRun) * LINE_MULTIPLIER;
+            ballSpeedVertical = (0 - newRise) * LINE_MULTIPLIER;
         }
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
