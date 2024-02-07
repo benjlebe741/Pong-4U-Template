@@ -179,11 +179,32 @@ namespace Pong
         }
         private void gameUpdateLoop_Tick(object sender, EventArgs e)
         {
-            #region update middles of objects
-            ballMiddle = new Point(ball.X + (BALL_WIDTH / 2), ball.Y + (BALL_HEIGHT / 2));
+            #region Updates related to Players
             for (int i = 0; i <= 1; i++)
             {
+                //Update Middle of Players
                 playerMiddle12[i] = new Point(rect12[i].X + (PADDLE_WIDTH / 2), rect12[i].Y + (PADDLE_HEIGHT / 2));
+                
+                //Update Laser Position
+                laserEnd12[i].Y += (laserMoveDown * LASER_SPEED);
+            
+                //Update Paddle Positions
+                check12[i].Location = rect12[i].Location;
+
+                check12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
+                if (check12[i].Y > 0 && check12[i].Y < (this.Height - PADDLE_HEIGHT))
+                {
+                    rect12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
+                }
+
+                //Ball Collision with Paddles
+                if (ball.IntersectsWith(rect12[i]))
+                {
+                    collisionSound.Play();
+                    ballMoveRight = ballChange12[i];
+                    ballTouching = i + 1;
+                    ballMode = 1;
+                }
             }
             #endregion
 
@@ -201,28 +222,11 @@ namespace Pong
                 ball.Y = (playerMiddle12[ballTouching - 1].Y) + ball.Y - ballMiddle.Y;
             }
 
-            for (int i = 0; i <= 1; i++)
-            {
-                laserEnd12[i].Y += (laserMoveDown * LASER_SPEED);
-            }
-            #endregion
+            ballMiddle = new Point(ball.X + (BALL_WIDTH / 2), ball.Y + (BALL_HEIGHT / 2));
 
-            #region update paddle positions
-            for (int i = 0; i <= 1; i++)
-            {
-                check12[i].Location = rect12[i].Location;
-
-                check12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
-                if (check12[i].Y > 0 && check12[i].Y < (this.Height - PADDLE_HEIGHT))
-                {
-                    rect12[i].Y += (PADDLE_SPEED * (up12[i] + down12[i]));
-                }
-            }
             #endregion
 
             #region collision with top and bottom lines
-
-
 
             if ((ball.Y <= 0) || (ball.Y >= this.Height - BALL_HEIGHT)) // if ball hits top or bottom line
             {
@@ -236,19 +240,6 @@ namespace Pong
             else if (laserEnd12[0].Y >= this.Height + LASER_OFFSET)
             {
                 laserMoveDown = -1;
-            }
-            #endregion
-
-            #region ball collision with paddles
-            for (int i = 0; i <= 1; i++)
-            {
-                if (ball.IntersectsWith(rect12[i]))
-                {
-                    collisionSound.Play();
-                    ballMoveRight = ballChange12[i];
-                    ballTouching = i + 1;
-                    ballMode = 1;
-                }
             }
             #endregion
 
